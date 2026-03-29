@@ -229,9 +229,8 @@ export async function loadCompositeCharacter(
 
   const bodyMeshName = bodyRig.slots.body;
   const bodyPartMeshes = collectPartMeshes(scene.meshes, bodyMeshName);
-  const hostSkeleton = findHostSkeleton(bodyPartMeshes);
-  if (!hostSkeleton) {
-    throw new Error(`No skeleton on body meshes "${bodyMeshName}" in ${bodyId}`);
+  if (bodyPartMeshes.length === 0) {
+    throw new Error(`No body meshes "${bodyMeshName}" in ${bodyId}`);
   }
 
   const hostArmatureRoot = getTopAncestor(bodyPartMeshes[0]);
@@ -257,41 +256,35 @@ export async function loadCompositeCharacter(
     const newMeshes = scene.meshes.slice(countBefore);
     const newSkeletons = scene.skeletons.slice(skelCountBefore);
 
-    const targetMeshes = collectPartMeshes(newMeshes, meshBaseName);
-    const donorImportRoot = newMeshes.length > 0 ? getTopAncestor(newMeshes[0]) : null;
+    hideExtrasFromRig(scene, srcRig, newMeshes);
 
+    const donorImportRoot = newMeshes.length > 0 ? getTopAncestor(newMeshes[0]) : null;
+    if (donorImportRoot && donorImportRoot !== compositeRoot && donorImportRoot.parent !== compositeRoot) {
+      donorImportRoot.parent = compositeRoot;
+    }
+
+    const targetMeshes = collectPartMeshes(newMeshes, meshBaseName);
     if (targetMeshes.length === 0) {
       disposeDonorRoot(donorImportRoot, hostArmatureRoot);
       for (const sk of newSkeletons) sk.dispose();
       continue;
     }
 
-    // Retarget FIRST — moves target meshes out of the donor tree
-    // so the subsequent donor root disposal won't destroy them.
-    const donorSkeleton = retargetPartToHost(targetMeshes, meshBaseName, hostSkeleton, hostArmatureRoot);
-
-    for (const m of targetMeshes) {
-      m.setEnabled(true);
+    // Keep only the selected donor slot visible.
+    for (const donorSlot of BODY_SLOTS) {
+      const donorBase = srcRig.slots[donorSlot];
+      const donorPartMeshes = collectPartMeshes(newMeshes, donorBase);
+      const shouldEnable = donorSlot === slot;
+      for (const m of donorPartMeshes) {
+        m.setEnabled(shouldEnable);
+      }
     }
 
-    // Remove the original body-slot meshes we're replacing
+    // Remove original host slot so donor slot becomes visible.
     disposePartFromScene(scene, bodyRig.slots[slot]);
-
-    // Clean up donor skeleton (meshes now reference hostSkeleton)
-    if (donorSkeleton) {
-      donorSkeleton.dispose();
-    }
-    for (const sk of newSkeletons) {
-      if (sk !== donorSkeleton) sk.dispose();
-    }
-
-    // Nuke the entire donor import tree — target meshes are safely
-    // under hostArmatureRoot now, so recursive disposal won't reach them.
-    disposeDonorRoot(donorImportRoot, hostArmatureRoot);
 
   }
 
-  hostSkeleton.computeAbsoluteMatrices(true);
   normalizeCompositeRoot(compositeRoot);
 
   return compositeRoot;
