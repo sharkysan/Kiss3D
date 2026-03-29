@@ -1,17 +1,13 @@
 # Kiss3D
 
-Browser-based **virtual cosplay studio**: a procedural 3D avatar with outfit presets, poses, lighting moods, and basic customization. The 3D view is powered by **Babylon.js**; the UI is **React 19**, **Vite 6**, **TypeScript**, and **Tailwind CSS v4**.
+Browser **3D model viewer** for bundled glTF/glB characters, built with **Babylon.js**, **React 19**, **Vite 6**, **TypeScript**, and **Tailwind CSS v4**.
 
 ## Features
 
-- **Outfits** — Switch between curated cosplay sets (see `src/types.ts`).
-- **Poses** — Idle / ready / survivor-style poses applied to the avatar.
-- **Scenes** — Studio, jungle, and tomb presets (lighting tweaks on the Babylon scene).
-- **Customization** — Accent color override and skin tone swatches.
+- **Mix & match** — Choose **body, head, legs, and feet** independently from characters listed in `manifest.json`. The **body** sets the skeleton; other parts are skinned to that rig (`src/characterParts.ts` maps glTF mesh names).
+- **Scenes** — Studio, jungle, and tomb lighting presets on the Babylon scene.
 - **Camera** — Orbit controls (drag to rotate, scroll to zoom).
-- **Sample glTF** — Minimal `public/models/base.gltf` (and `base.glp`, same JSON) for reference or hosting tests.
-
-There is **no** external model host or Google Drive integration in this tree; the default experience uses the built-in avatar in `BabylonScene`.
+- **Static pose** — Animation groups are disposed after load (bind pose only).
 
 ## Prerequisites
 
@@ -33,29 +29,31 @@ No environment variables are required for local development.
 | `npm run build` | Production build to `dist/`. |
 | `npm run preview` | Preview the production build locally. |
 | `npm run lint` | Typecheck with `tsc --noEmit`. |
+| `npm run list-meshes` | Print glTF mesh/node names for every `.glb` in `public/models` (for updating `characterParts.ts`). |
 | `npm run clean` | Remove `dist/` (Unix-style `rm`; on Windows use `rmdir /s /q dist` if needed). |
 
 ## Project layout
 
 ```
 src/
-  App.tsx              # UI overlay + Babylon canvas
+  App.tsx              # UI + per-slot character picks
   main.tsx             # React entry
-  types.ts             # Outfit / pose types
   index.css            # Global styles (Tailwind)
+  modelManifest.ts     # Manifest fetch
+  characterParts.ts    # Per-character mesh names + file mapping
+  compositeCharacter.ts# Load body GLB + retarget part meshes from other GLBs
   components/
-    BabylonScene.tsx   # Engine, camera, avatar, glTF loader hooks
+    BabylonScene.tsx   # Engine, lighting, composite loader
 public/
   models/
-    base.gltf          # Tiny sample glTF
-    base.glp           # Same JSON, non-standard extension (rename to .gltf for tools)
-metadata.json        # App title/description metadata (e.g. for AI Studio packaging)
+    *.glb              # Character assets (see manifest.json)
+    manifest.json      # Model list — add a row when you add a new file
+metadata.json          # App title/description metadata
 ```
 
 ## Development notes
 
 - **HMR**: In `vite.config.ts`, set `DISABLE_HMR=true` to turn off Hot Module Replacement (useful in constrained or agent-driven environments).
-- **Babylon**: `@babylonjs/core` and `@babylonjs/loaders` support glTF/GLB if you extend the scene to load external files again.
 
 ## License
 

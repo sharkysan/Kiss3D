@@ -1,0 +1,12 @@
+{
+  "models": [
+    { "id": "adventurer", "label": "Adventurer", "path": "Adventurer.glb" },
+    { "id": "medieval", "label": "Medieval", "path": "Medieval.glb" },
+    { "id": "punk", "label": "Punk", "path": "Punk.glb" },
+    { "id": "sci-fi", "label": "Sci Fi Character", "path": "Sci Fi Character.glb" },
+    { "id": "soldier", "label": "Soldier", "path": "Soldier.glb" },
+    { "id": "suit", "label": "Suit", "path": "Suit.glb" },
+    { "id": "witch", "label": "Witch", "path": "Witch.glb" },
+    { "id": "worker", "label": "Worker", "path": "Worker.glb" }
+  ]
+}

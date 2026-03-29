@@ -1,5 +1,5 @@
 {
-  "name": "Cosplay3D: Virtual Dress-Up",
-  "description": "A 3D web application for trying on various cosplay outfits and customizing your avatar.",
+  "name": "Kiss3D",
+  "description": "3D glTF character viewer with Babylon.js.",
   "requestFramePermissions": []
 }
