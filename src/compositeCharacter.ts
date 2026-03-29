@@ -1,13 +1,13 @@
 import {
   AbstractMesh,
   Mesh,
-  Quaternion,
   type Scene,
   SceneLoader,
   type Skeleton,
   type Node,
   TransformNode,
   Vector3,
+  VertexBuffer,
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 
@@ -50,11 +50,15 @@ function getTopAncestor(node: Node): Node {
   return n;
 }
 
+/**
+ * Collect Mesh instances for a glTF mesh by base name.
+ * Multi-primitive glTF meshes produce children named `baseName_primitive0`, etc.
+ * Single-primitive meshes produce one Mesh named `baseName`.
+ */
 function collectPartMeshes(allMeshes: Iterable<AbstractMesh>, baseName: string): Mesh[] {
   const out: Mesh[] = [];
   for (const m of allMeshes) {
     if (!(m instanceof Mesh)) continue;
-    if (!m.skeleton) continue;
     if (m.name === baseName || m.name.startsWith(`${baseName}_primitive`)) {
       out.push(m);
     }
@@ -62,63 +66,11 @@ function collectPartMeshes(allMeshes: Iterable<AbstractMesh>, baseName: string):
   return out;
 }
 
-function findHostSkeleton(meshes: Mesh[]): Mesh['skeleton'] | null {
+function findHostSkeleton(meshes: Mesh[]): Skeleton | null {
   for (const m of meshes) {
     if (m.skeleton) return m.skeleton;
   }
   return null;
-}
-
-function findTransformNamedUnderRoot(root: Node, name: string): TransformNode | null {
-  if (root instanceof TransformNode && root.name === name) {
-    return root;
-  }
-  const found = root.getDescendants(false, (n): n is TransformNode => n instanceof TransformNode && n.name === name);
-  return found[0] ?? null;
-}
-
-/**
- * Bone-driven node for the *host* character only (never nodes from a 2nd imported glTF).
- * Order: linked bone node → search under host armature root by name.
- */
-function getHostBoneTransform(
-  hostSkeleton: Skeleton,
-  boneName: string | undefined,
-  hostArmatureRoot: Node,
-): TransformNode | null {
-  if (!boneName) return null;
-  const bone = hostSkeleton.bones.find((b) => b.name === boneName);
-  if (!bone) return null;
-  const linked = bone.getTransformNode();
-  if (linked) return linked;
-  return findTransformNamedUnderRoot(hostArmatureRoot, boneName);
-}
-
-const hostSkeletonBoneNameSet = (s: Skeleton) => new Set(s.bones.map((b) => b.name));
-
-/** Nearest ancestor whose name matches a host skeleton bone (handles extra nodes between mesh and joint). */
-function findNearestHostBoneName(start: Node | null | undefined, hostSkeleton: Skeleton): string | undefined {
-  if (!start) return undefined;
-  const names = hostSkeletonBoneNameSet(hostSkeleton);
-  let n: Node | null = start;
-  while (n) {
-    if (names.has(n.name)) return n.name;
-    n = n.parent;
-  }
-  return undefined;
-}
-
-/** Bind-pose style offset under glTF/Mixamo: identity local on the bone node. */
-function resetLocalUnderBone(node: TransformNode) {
-  node.position.copyFromFloats(0, 0, 0);
-  node.scaling.copyFromFloats(1, 1, 1);
-  node.rotationQuaternion = Quaternion.Identity();
-}
-
-function resetMeshLocalUnderBone(mesh: Mesh) {
-  mesh.position.copyFromFloats(0, 0, 0);
-  mesh.scaling.copyFromFloats(1, 1, 1);
-  mesh.rotationQuaternion = Quaternion.Identity();
 }
 
 function hideExtrasFromRig(scene: Scene, rig: CharacterRig, meshes: Iterable<AbstractMesh>) {
@@ -138,51 +90,82 @@ function hideExtrasFromRig(scene: Scene, rig: CharacterRig, meshes: Iterable<Abs
   }
 }
 
-function retargetPartToHost(partMeshes: Mesh[], hostSkeleton: Skeleton, hostArmatureRoot: Node) {
-  if (partMeshes.length === 0) return;
+/**
+ * Skinned-mesh retargeting: swap skeleton reference and move meshes
+ * into the host armature's coordinate space.
+ *
+ * glTF skinned meshes are NOT children of bones — vertex deformation is
+ * done by the GPU using bone indices/weights.  We just need the mesh in
+ * the same coordinate space as the host skeleton.
+ *
+ * Returns the donor skeleton (for cleanup) or null.
+ */
+function retargetPartToHost(
+  partMeshes: Mesh[],
+  meshBaseName: string,
+  hostSkeleton: Skeleton,
+  hostArmatureRoot: Node,
+): Skeleton | null {
+  if (partMeshes.length === 0) return null;
 
+  let donorSkeleton: Skeleton | null = null;
+  for (const m of partMeshes) {
+    if (!donorSkeleton && m.skeleton && m.skeleton !== hostSkeleton) {
+      donorSkeleton = m.skeleton;
+    }
+    const hasSkinningData =
+      m.isVerticesDataPresent(VertexBuffer.MatricesIndicesKind) &&
+      m.isVerticesDataPresent(VertexBuffer.MatricesWeightsKind);
+    m.skeleton = hasSkinningData ? hostSkeleton : null;
+  }
+
+  // Multi-primitive glTF meshes share a TransformNode wrapper named after the mesh.
+  // We reparent the wrapper so the children stay together.
+  // Single-primitive meshes have no wrapper — reparent the mesh directly.
   const sharedParent = partMeshes[0].parent;
-  const allShareParent = partMeshes.every((m) => m.parent === sharedParent);
+  const hasWrapper =
+    sharedParent instanceof TransformNode &&
+    sharedParent.name === meshBaseName &&
+    partMeshes.every((m) => m.parent === sharedParent);
 
-  if (allShareParent && sharedParent instanceof TransformNode) {
-    const boneName =
-      findNearestHostBoneName(sharedParent, hostSkeleton) ??
-      findNearestHostBoneName(partMeshes[0].parent, hostSkeleton);
+  if (hasWrapper && hostArmatureRoot instanceof TransformNode) {
+    sharedParent.parent = hostArmatureRoot;
+  } else if (hostArmatureRoot instanceof TransformNode) {
     for (const m of partMeshes) {
-      m.skeleton = hostSkeleton;
+      m.parent = hostArmatureRoot;
     }
-    const hostBoneTn = getHostBoneTransform(hostSkeleton, boneName, hostArmatureRoot);
-    if (hostBoneTn && sharedParent.parent !== hostBoneTn) {
-      sharedParent.parent = hostBoneTn;
-      resetLocalUnderBone(sharedParent);
-    }
-    for (const m of partMeshes) {
-      m.refreshBoundingInfo(true, true);
-    }
-    return;
   }
 
   for (const m of partMeshes) {
-    m.skeleton = hostSkeleton;
-    const boneName = findNearestHostBoneName(m.parent, hostSkeleton);
-    const hostBoneTn = getHostBoneTransform(hostSkeleton, boneName, hostArmatureRoot);
-    if (hostBoneTn && m.parent !== hostBoneTn) {
-      m.parent = hostBoneTn;
-      resetMeshLocalUnderBone(m);
-    }
     m.refreshBoundingInfo(true, true);
   }
+
+  return donorSkeleton;
 }
 
+/** Remove a body-slot's meshes (and their wrapper TransformNode) from the scene. */
 function disposePartFromScene(scene: Scene, baseName: string) {
   const partMeshes = collectPartMeshes(scene.meshes, baseName);
   const tn = scene.getTransformNodeByName(baseName);
   if (tn && partMeshes.length > 0 && partMeshes.every((m) => m.parent === tn)) {
-    tn.dispose(false, true);
+    tn.dispose(false, false);
     return;
   }
   for (const m of partMeshes) {
-    m.dispose(false, true);
+    m.dispose(false, false);
+  }
+}
+
+/** Safely dispose a donor import root if it's not part of the host hierarchy. */
+function disposeDonorRoot(donorRoot: Node | null, hostArmatureRoot: Node) {
+  if (
+    donorRoot &&
+    donorRoot !== hostArmatureRoot &&
+    !hostArmatureRoot.isDescendantOf(donorRoot) &&
+    !donorRoot.isDisposed()
+  ) {
+    // false = recurse into remaining children; false = don't dispose materials/textures
+    donorRoot.dispose(false, false);
   }
 }
 
@@ -220,7 +203,7 @@ export async function loadFullBodyCharacter(scene: Scene, bodyId: string): Promi
 
   const bodyMeshes = collectPartMeshes(scene.meshes, bodyRig.slots.body);
   if (bodyMeshes.length === 0) {
-    throw new Error(`No skinned body meshes "${bodyRig.slots.body}" in ${bodyId}`);
+    throw new Error(`No body meshes "${bodyRig.slots.body}" in ${bodyId}`);
   }
 
   return normalizeUnderComposite(scene, bodyMeshes[0]);
@@ -248,14 +231,7 @@ export async function loadCompositeCharacter(
   const bodyPartMeshes = collectPartMeshes(scene.meshes, bodyMeshName);
   const hostSkeleton = findHostSkeleton(bodyPartMeshes);
   if (!hostSkeleton) {
-    throw new Error(`Could not find skinned body meshes for "${bodyMeshName}" in ${bodyId}`);
-  }
-
-  for (const slot of BODY_SLOTS) {
-    if (slot === 'body') continue;
-    const srcId = parts[slot];
-    if (!CHARACTER_RIGS[srcId] || srcId === bodyId) continue;
-    disposePartFromScene(scene, bodyRig.slots[slot]);
+    throw new Error(`No skeleton on body meshes "${bodyMeshName}" in ${bodyId}`);
   }
 
   const hostArmatureRoot = getTopAncestor(bodyPartMeshes[0]);
@@ -273,31 +249,46 @@ export async function loadCompositeCharacter(
     if (!url) continue;
 
     const meshBaseName = srcRig.slots[slot];
+
+    // Snapshot mesh count before import so we can isolate new meshes
     const countBefore = scene.meshes.length;
+    const skelCountBefore = scene.skeletons.length;
     await importGltf(scene, url);
     const newMeshes = scene.meshes.slice(countBefore);
+    const newSkeletons = scene.skeletons.slice(skelCountBefore);
 
     const targetMeshes = collectPartMeshes(newMeshes, meshBaseName);
     const donorImportRoot = newMeshes.length > 0 ? getTopAncestor(newMeshes[0]) : null;
 
-    for (const m of newMeshes) {
-      if (targetMeshes.includes(m as Mesh)) continue;
-      m.dispose(false, true);
+    if (targetMeshes.length === 0) {
+      disposeDonorRoot(donorImportRoot, hostArmatureRoot);
+      for (const sk of newSkeletons) sk.dispose();
+      continue;
     }
 
-    retargetPartToHost(targetMeshes, hostSkeleton, hostArmatureRoot);
+    // Retarget FIRST — moves target meshes out of the donor tree
+    // so the subsequent donor root disposal won't destroy them.
+    const donorSkeleton = retargetPartToHost(targetMeshes, meshBaseName, hostSkeleton, hostArmatureRoot);
+
     for (const m of targetMeshes) {
       m.setEnabled(true);
     }
 
-    if (
-      donorImportRoot &&
-      donorImportRoot !== hostArmatureRoot &&
-      !hostArmatureRoot.isDescendantOf(donorImportRoot) &&
-      !donorImportRoot.isDisposed()
-    ) {
-      donorImportRoot.dispose(true, true);
+    // Remove the original body-slot meshes we're replacing
+    disposePartFromScene(scene, bodyRig.slots[slot]);
+
+    // Clean up donor skeleton (meshes now reference hostSkeleton)
+    if (donorSkeleton) {
+      donorSkeleton.dispose();
     }
+    for (const sk of newSkeletons) {
+      if (sk !== donorSkeleton) sk.dispose();
+    }
+
+    // Nuke the entire donor import tree — target meshes are safely
+    // under hostArmatureRoot now, so recursive disposal won't reach them.
+    disposeDonorRoot(donorImportRoot, hostArmatureRoot);
+
   }
 
   hostSkeleton.computeAbsoluteMatrices(true);
@@ -306,7 +297,7 @@ export async function loadCompositeCharacter(
   return compositeRoot;
 }
 
-/** World-space bounds center and half-extents for framing the camera (after normalizeCompositeRoot). */
+/** World-space bounds for framing the camera. */
 export function getCompositeFrameVectors(root: TransformNode) {
   const { min, max } = root.getHierarchyBoundingVectors(true, bboxPredicate);
   const center = min.add(max).scale(0.5);
