@@ -7,7 +7,9 @@ import {
   HemisphericLight,
   ImageProcessingConfiguration,
   MeshBuilder,
+  type Node,
   Scene,
+  SceneLoader,
   ShadowGenerator,
   StandardMaterial,
   TransformNode,
@@ -62,6 +64,96 @@ function styleBackgroundMesh(shadowGen: ShadowGenerator, mesh: { isPickable: boo
   mesh.isPickable = false;
   mesh.receiveShadows = true;
   shadowGen.addShadowCaster(mesh as never, false);
+}
+
+function getTopAncestor(node: Node): Node {
+  let n: Node = node;
+  while (n.parent) n = n.parent;
+  return n;
+}
+
+function parseAssetUrl(url: string) {
+  const u = new URL(url, typeof window !== 'undefined' ? window.location.href : 'http://localhost');
+  const pathname = decodeURIComponent(u.pathname);
+  const ix = pathname.lastIndexOf('/');
+  const sceneFilename = pathname.slice(ix + 1);
+  return {
+    rootUrl: u.origin + pathname.slice(0, ix + 1),
+    sceneFilename,
+  };
+}
+
+type InternetPropConfig = {
+  url: string;
+  scale: number;
+  position: Vector3;
+  rotationY?: number;
+};
+
+const INTERNET_PRESET_PROP: Record<BabylonSceneProps['scenePreset'], InternetPropConfig> = {
+  studio: {
+    url: 'https://assets.babylonjs.com/meshes/shaderBall.glb',
+    scale: 1.4,
+    position: new Vector3(0, -0.18, 5.8),
+  },
+  jungle: {
+    url: 'https://assets.babylonjs.com/meshes/village.glb',
+    scale: 0.62,
+    position: new Vector3(0, -0.18, 6.6),
+  },
+  tomb: {
+    url: 'https://assets.babylonjs.com/meshes/graveYardPack/coffin/coffin.glb',
+    scale: 2.8,
+    position: new Vector3(0, -0.18, 5.6),
+  },
+  sunset: {
+    url: 'https://assets.babylonjs.com/meshes/pirateFort/cannon.glb',
+    scale: 2.0,
+    position: new Vector3(0, -0.18, 5.9),
+    rotationY: Math.PI * 0.08,
+  },
+  neon: {
+    url: 'https://assets.babylonjs.com/meshes/TrailMeshSpell/spellDisk.glb',
+    scale: 1.1,
+    position: new Vector3(0, 0.2, 5.7),
+  },
+  arctic: {
+    url: 'https://assets.babylonjs.com/meshes/Demos/Snow_Man_Scene/snowMan.glb',
+    scale: 1.05,
+    position: new Vector3(0, -0.18, 6.0),
+  },
+};
+
+async function loadInternetBackgroundProp(
+  scene: Scene,
+  preset: BabylonSceneProps['scenePreset'],
+  shadowGen: ShadowGenerator,
+  parentRoot: TransformNode,
+) {
+  const config = INTERNET_PRESET_PROP[preset];
+  if (!config) return;
+
+  try {
+    const countBefore = scene.meshes.length;
+    const { rootUrl, sceneFilename } = parseAssetUrl(config.url);
+    await SceneLoader.ImportMeshAsync(null, rootUrl, sceneFilename, scene);
+    const importedMeshes = scene.meshes.slice(countBefore);
+    if (importedMeshes.length === 0) return;
+
+    const importRoot = getTopAncestor(importedMeshes[0]);
+    const propRoot = new TransformNode(`internetProp_${preset}`, scene);
+    propRoot.parent = parentRoot;
+    propRoot.position.copyFrom(config.position);
+    propRoot.scaling.copyFromFloats(config.scale, config.scale, config.scale);
+    if (config.rotationY) {
+      propRoot.rotation.y = config.rotationY;
+    }
+
+    importRoot.parent = propRoot;
+    importedMeshes.forEach((m) => styleBackgroundMesh(shadowGen, m));
+  } catch (err) {
+    console.warn(`Background internet prop failed for preset "${preset}":`, err);
+  }
 }
 
 function createBackgroundProps(scene: Scene, scenePreset: BabylonSceneProps['scenePreset'], shadowGen: ShadowGenerator) {
@@ -290,7 +382,8 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
       groundMat.diffuseColor = new Color3(0.11, 0.14, 0.18);
     }
 
-    createBackgroundProps(scene, scenePreset, shadowGen);
+    const backgroundRoot = createBackgroundProps(scene, scenePreset, shadowGen);
+    void loadInternetBackgroundProp(scene, scenePreset, shadowGen, backgroundRoot);
 
     let t0 = performance.now();
     let bobBaseY = 0;
