@@ -7,7 +7,7 @@ Browser **3D model viewer** for bundled glTF/glB characters, built with **Babylo
 ## Features
 
 - **Mix & match** — Choose **body, head, legs, and feet** independently from characters listed in `manifest.json`. The **body** sets the skeleton; other parts are skinned to that rig (`src/characterParts.ts` maps glTF mesh names).
-- **Scenes** — Studio, jungle, and tomb lighting presets on the Babylon scene.
+- **Scenes** — Studio, jungle, tomb, sunset, neon, and arctic lighting presets on the Babylon scene.
 - **Camera** — Orbit controls (drag to rotate, scroll to zoom).
 - **Static pose** — Animation groups are disposed after load (bind pose only).
 

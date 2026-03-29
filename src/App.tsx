@@ -17,8 +17,19 @@ const SLOT_LABEL: Record<BodySlot, string> = {
   feet: 'Feet',
 };
 
+const SCENE_PRESETS = [
+  { id: 'studio', label: 'Studio' },
+  { id: 'jungle', label: 'Jungle' },
+  { id: 'tomb', label: 'Tomb' },
+  { id: 'sunset', label: 'Sunset' },
+  { id: 'neon', label: 'Neon' },
+  { id: 'arctic', label: 'Arctic' },
+] as const;
+
+type ScenePreset = (typeof SCENE_PRESETS)[number]['id'];
+
 export default function App() {
-  const [currentScene, setCurrentScene] = useState<'studio' | 'jungle' | 'tomb'>('studio');
+  const [currentScene, setCurrentScene] = useState<ScenePreset>('studio');
   const [showInfo, setShowInfo] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [publicModels, setPublicModels] = useState<PublicModelEntry[]>([]);
@@ -46,7 +57,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative h-screen w-screen font-sans overflow-hidden bg-[#050505]">
+    <div className="relative h-screen w-screen font-sans overflow-hidden bg-[#050505] text-white">
       <div className="absolute inset-0 z-0">
         <Suspense fallback={null}>
           <BabylonScene parts={parts} scenePreset={currentScene} />
@@ -54,13 +65,13 @@ export default function App() {
       </div>
 
       <div className="relative z-10 h-full flex flex-col pointer-events-none">
-        <header className="p-8 flex justify-between items-start">
+        <header className="p-4 md:p-8 flex justify-between items-start">
           <motion.div
             initial={{ x: -50, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="pointer-events-auto"
+            className="pointer-events-auto bg-black/35 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-4"
           >
-            <h1 className="text-6xl font-black tracking-tighter uppercase leading-none">
+            <h1 className="text-4xl md:text-6xl font-black tracking-tighter uppercase leading-none">
               Kiss<span className="text-white/20">3D</span>
             </h1>
             <p className="text-xs font-mono uppercase tracking-widest mt-2 text-white/50">
@@ -68,18 +79,18 @@ export default function App() {
             </p>
           </motion.div>
 
-          <div className="flex gap-4 pointer-events-auto">
+          <div className="flex gap-3 pointer-events-auto bg-black/35 backdrop-blur-md border border-white/10 rounded-2xl p-2">
             <button
               type="button"
               onClick={() => setShowInfo(!showInfo)}
-              className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors"
+              className="w-11 h-11 rounded-xl border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors"
             >
               <Info size={20} />
             </button>
             <button
               type="button"
               onClick={takePhoto}
-              className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors pointer-events-auto"
+              className="w-11 h-11 rounded-xl border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors pointer-events-auto"
             >
               <Camera size={20} />
             </button>
@@ -89,48 +100,48 @@ export default function App() {
         <motion.div
           initial={{ x: 50, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="absolute right-8 top-32 pointer-events-auto flex flex-col gap-4 max-w-[220px]"
+          className="absolute right-4 md:right-8 top-24 md:top-32 bottom-4 md:bottom-8 pointer-events-auto w-[min(360px,calc(100vw-2rem))] bg-black/45 backdrop-blur-xl border border-white/10 rounded-2xl p-4 md:p-5 overflow-hidden"
         >
-          {BODY_SLOTS.map((slot) => (
-            <div
-              key={slot}
-              className="bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">
-                  {SLOT_LABEL[slot]}
-                </span>
+          <div className="overflow-y-auto pr-1 space-y-4">
+            {BODY_SLOTS.map((slot) => (
+              <div key={slot} className="border border-white/10 rounded-xl p-3 bg-black/20">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-white/45">
+                    {SLOT_LABEL[slot]}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {rigModels.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setPart(slot, m.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-widest transition-all text-left truncate ${parts[slot] === m.id ? 'bg-white text-black' : 'bg-white/5 text-white/45 hover:bg-white/10 hover:text-white/80'}`}
+                      title={m.label}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
-                {rigModels.map((m) => (
+            ))}
+
+            <div className="border border-white/10 rounded-xl p-3 bg-black/20">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-white/45">Scene Preset</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {SCENE_PRESETS.map((scene) => (
                   <button
-                    key={m.id}
+                    key={scene.id}
                     type="button"
-                    onClick={() => setPart(slot, m.id)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-widest transition-all text-left ${parts[slot] === m.id ? 'bg-white text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+                    onClick={() => setCurrentScene(scene.id)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-widest transition-all ${currentScene === scene.id ? 'bg-white text-black' : 'bg-white/5 text-white/45 hover:bg-white/10 hover:text-white/80'}`}
                   >
-                    {m.label}
+                    {scene.label}
                   </button>
                 ))}
               </div>
-            </div>
-          ))}
-
-          <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Scene</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {['studio', 'jungle', 'tomb'].map((scene) => (
-                <button
-                  key={scene}
-                  type="button"
-                  onClick={() => setCurrentScene(scene as 'studio' | 'jungle' | 'tomb')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-widest transition-all ${currentScene === scene ? 'bg-white text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
-                >
-                  {scene}
-                </button>
-              ))}
             </div>
           </div>
         </motion.div>

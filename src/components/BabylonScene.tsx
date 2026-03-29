@@ -25,7 +25,7 @@ import {
 
 interface BabylonSceneProps {
   parts: Record<BodySlot, string>;
-  scenePreset: 'studio' | 'jungle' | 'tomb';
+  scenePreset: 'studio' | 'jungle' | 'tomb' | 'sunset' | 'neon' | 'arctic';
 }
 
 function disposeNodeDeep(node: TransformNode) {
@@ -56,7 +56,7 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
 
     const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }, true);
     const scene = new Scene(engine);
-    scene.clearColor.set(0, 0, 0, 1);
+    scene.clearColor.set(0.01, 0.01, 0.02, 1);
     scene.imageProcessingConfiguration.toneMappingEnabled = true;
     scene.imageProcessingConfiguration.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
     scene.imageProcessingConfiguration.exposure = 1.05;
@@ -89,12 +89,38 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
     ground.material = groundMat;
 
     if (scenePreset === 'jungle') {
-      hemi.diffuse = new Color3(0.85, 1.0, 0.85);
-      groundMat.diffuseColor = new Color3(0.03, 0.05, 0.03);
+      scene.clearColor.set(0.015, 0.03, 0.02, 1);
+      hemi.intensity = 0.75;
+      hemi.diffuse = new Color3(0.82, 1.0, 0.86);
+      dir.intensity = 0.95;
+      groundMat.diffuseColor = new Color3(0.03, 0.06, 0.04);
     } else if (scenePreset === 'tomb') {
+      scene.clearColor.set(0.01, 0.015, 0.03, 1);
       hemi.intensity = 0.35;
-      hemi.diffuse = new Color3(0.8, 0.8, 1.0);
+      hemi.diffuse = new Color3(0.78, 0.8, 1.0);
+      dir.intensity = 0.85;
       groundMat.diffuseColor = new Color3(0.03, 0.03, 0.05);
+    } else if (scenePreset === 'sunset') {
+      scene.clearColor.set(0.09, 0.03, 0.015, 1);
+      hemi.intensity = 0.7;
+      hemi.diffuse = new Color3(1.0, 0.7, 0.55);
+      dir.intensity = 1.15;
+      dir.direction = new Vector3(-0.4, -1.0, -0.25);
+      groundMat.diffuseColor = new Color3(0.11, 0.05, 0.03);
+    } else if (scenePreset === 'neon') {
+      scene.clearColor.set(0.005, 0.005, 0.02, 1);
+      hemi.intensity = 0.9;
+      hemi.diffuse = new Color3(0.65, 0.8, 1.0);
+      hemi.groundColor = new Color3(1.0, 0.25, 0.8);
+      dir.intensity = 0.7;
+      groundMat.diffuseColor = new Color3(0.02, 0.02, 0.06);
+    } else if (scenePreset === 'arctic') {
+      scene.clearColor.set(0.02, 0.045, 0.08, 1);
+      hemi.intensity = 0.9;
+      hemi.diffuse = new Color3(0.86, 0.94, 1.0);
+      hemi.groundColor = new Color3(0.5, 0.62, 0.75);
+      dir.intensity = 1.05;
+      groundMat.diffuseColor = new Color3(0.11, 0.14, 0.18);
     }
 
     let t0 = performance.now();
