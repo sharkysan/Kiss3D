@@ -23,15 +23,7 @@ There is **no** external model host or Google Drive integration in this tree; th
 npm install
 ```
 
-Optional environment file (copy from `.env.example`):
-
-```bash
-cp .env.example .env.local   # or create .env.local manually on Windows
-```
-
-| Variable | Purpose |
-|----------|---------|
-| `GEMINI_API_KEY` | Injected at build time as `process.env.GEMINI_API_KEY` via `vite.config.ts`. The current UI does not call the Gemini API; use this when you add `@google/genai` usage. |
+No environment variables are required for local development.
 
 ## Scripts
 
