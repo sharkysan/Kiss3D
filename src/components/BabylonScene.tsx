@@ -44,6 +44,173 @@ function frameCameraOnCharacter(camera: ArcRotateCamera, root: TransformNode) {
   camera.upperRadiusLimit = Math.max(16, camera.radius * 2.8);
 }
 
+function makeMat(
+  scene: Scene,
+  name: string,
+  diffuse: Color3,
+  specular: Color3 = new Color3(0.08, 0.08, 0.08),
+  emissive: Color3 = Color3.Black(),
+) {
+  const mat = new StandardMaterial(name, scene);
+  mat.diffuseColor = diffuse;
+  mat.specularColor = specular;
+  mat.emissiveColor = emissive;
+  return mat;
+}
+
+function styleBackgroundMesh(shadowGen: ShadowGenerator, mesh: { isPickable: boolean; receiveShadows: boolean }) {
+  mesh.isPickable = false;
+  mesh.receiveShadows = true;
+  shadowGen.addShadowCaster(mesh as never, false);
+}
+
+function createBackgroundProps(scene: Scene, scenePreset: BabylonSceneProps['scenePreset'], shadowGen: ShadowGenerator) {
+  const root = new TransformNode('backgroundProps', scene);
+
+  const place = (x: number, z: number) => new Vector3(x, -0.2, z);
+
+  if (scenePreset === 'studio') {
+    const panelMat = makeMat(scene, 'studioPanelMat', new Color3(0.06, 0.06, 0.08), Color3.Black());
+    for (const [i, x] of [-5.2, 5.2].entries()) {
+      const panel = MeshBuilder.CreateBox(`studioPanel${i}`, { width: 1.2, height: 3.4, depth: 0.16 }, scene);
+      panel.position = place(x, -1.1);
+      panel.position.y = 1.4;
+      panel.material = panelMat;
+      panel.parent = root;
+      styleBackgroundMesh(shadowGen, panel);
+    }
+  } else if (scenePreset === 'jungle') {
+    const trunkMat = makeMat(scene, 'jungleTrunkMat', new Color3(0.18, 0.1, 0.05), Color3.Black());
+    const leafMat = makeMat(scene, 'jungleLeafMat', new Color3(0.08, 0.28, 0.12), Color3.Black());
+    const rockMat = makeMat(scene, 'jungleRockMat', new Color3(0.07, 0.1, 0.08), Color3.Black());
+    const treePos: Array<[number, number]> = [
+      [-5.6, -1.2],
+      [5.3, -0.9],
+      [-4.8, 2.8],
+      [4.6, 3.4],
+    ];
+    treePos.forEach(([x, z], i) => {
+      const trunk = MeshBuilder.CreateCylinder(`jungleTrunk${i}`, { diameter: 0.36, height: 2.0 }, scene);
+      trunk.position = place(x, z);
+      trunk.position.y = 0.8;
+      trunk.material = trunkMat;
+      trunk.parent = root;
+      styleBackgroundMesh(shadowGen, trunk);
+
+      const crown = MeshBuilder.CreateSphere(`jungleCrown${i}`, { diameter: 1.6 }, scene);
+      crown.position = place(x, z);
+      crown.position.y = 2.0;
+      crown.material = leafMat;
+      crown.parent = root;
+      styleBackgroundMesh(shadowGen, crown);
+    });
+    for (const [i, x] of [-3.1, 2.7].entries()) {
+      const rock = MeshBuilder.CreateBox(`jungleRock${i}`, { width: 1.1, height: 0.55, depth: 0.9 }, scene);
+      rock.position = place(x, 4.6);
+      rock.position.y = 0.08;
+      rock.material = rockMat;
+      rock.parent = root;
+      styleBackgroundMesh(shadowGen, rock);
+    }
+  } else if (scenePreset === 'tomb') {
+    const columnMat = makeMat(scene, 'tombColumnMat', new Color3(0.14, 0.14, 0.17), Color3.Black());
+    const glyphMat = makeMat(scene, 'tombGlyphMat', new Color3(0.1, 0.1, 0.14), Color3.Black(), new Color3(0.08, 0.12, 0.22));
+    const colPos: Array<[number, number]> = [
+      [-4.6, -0.8],
+      [4.6, -0.8],
+      [-4.2, 3.1],
+      [4.2, 3.1],
+    ];
+    colPos.forEach(([x, z], i) => {
+      const col = MeshBuilder.CreateCylinder(`tombColumn${i}`, { diameter: 0.52, height: 2.6, tessellation: 8 }, scene);
+      col.position = place(x, z);
+      col.position.y = 1.1;
+      col.material = columnMat;
+      col.parent = root;
+      styleBackgroundMesh(shadowGen, col);
+    });
+    const glyph = MeshBuilder.CreateTorus('tombGlyph', { diameter: 2.2, thickness: 0.12, tessellation: 24 }, scene);
+    glyph.position = place(0, 5.4);
+    glyph.position.y = 1.2;
+    glyph.rotation.x = Math.PI / 2.2;
+    glyph.material = glyphMat;
+    glyph.parent = root;
+    styleBackgroundMesh(shadowGen, glyph);
+  } else if (scenePreset === 'sunset') {
+    const spireMat = makeMat(scene, 'sunsetSpireMat', new Color3(0.22, 0.1, 0.06), Color3.Black());
+    const duneMat = makeMat(scene, 'sunsetDuneMat', new Color3(0.18, 0.09, 0.05), Color3.Black());
+    const spirePos: Array<[number, number, number]> = [
+      [-5.0, 0.8, 2.2],
+      [5.2, 1.0, 2.5],
+      [0.0, 6.3, 1.7],
+    ];
+    spirePos.forEach(([x, z, h], i) => {
+      const spire = MeshBuilder.CreateCylinder(`sunsetSpire${i}`, { diameterTop: 0.15, diameterBottom: 0.95, height: h }, scene);
+      spire.position = place(x, z);
+      spire.position.y = h * 0.45;
+      spire.material = spireMat;
+      spire.parent = root;
+      styleBackgroundMesh(shadowGen, spire);
+    });
+    const dune = MeshBuilder.CreateSphere('sunsetDune', { diameterX: 9.5, diameterY: 1.2, diameterZ: 4.5, segments: 18 }, scene);
+    dune.position = place(0, 6.4);
+    dune.position.y = -0.02;
+    dune.material = duneMat;
+    dune.parent = root;
+    styleBackgroundMesh(shadowGen, dune);
+  } else if (scenePreset === 'neon') {
+    const pillarMat = makeMat(scene, 'neonPillarMat', new Color3(0.03, 0.03, 0.08), Color3.Black(), new Color3(0.15, 0.04, 0.25));
+    const ringMat = makeMat(scene, 'neonRingMat', new Color3(0.02, 0.02, 0.07), Color3.Black(), new Color3(0.0, 0.45, 0.65));
+    const pillarPos: Array<[number, number]> = [
+      [-5.2, 0.4],
+      [5.2, 0.4],
+      [-3.8, 4.3],
+      [3.8, 4.3],
+    ];
+    pillarPos.forEach(([x, z], i) => {
+      const pillar = MeshBuilder.CreateCylinder(`neonPillar${i}`, { diameter: 0.28, height: 3.2, tessellation: 12 }, scene);
+      pillar.position = place(x, z);
+      pillar.position.y = 1.4;
+      pillar.material = pillarMat;
+      pillar.parent = root;
+      styleBackgroundMesh(shadowGen, pillar);
+    });
+    const ring = MeshBuilder.CreateTorus('neonRing', { diameter: 6.4, thickness: 0.1, tessellation: 56 }, scene);
+    ring.position = place(0, 4.9);
+    ring.position.y = 1.1;
+    ring.rotation.x = Math.PI / 2;
+    ring.material = ringMat;
+    ring.parent = root;
+    styleBackgroundMesh(shadowGen, ring);
+  } else if (scenePreset === 'arctic') {
+    const iceMat = makeMat(scene, 'arcticIceMat', new Color3(0.5, 0.72, 0.88), Color3.Black(), new Color3(0.05, 0.1, 0.14));
+    const chunkMat = makeMat(scene, 'arcticChunkMat', new Color3(0.36, 0.5, 0.6), Color3.Black());
+    const crystalPos: Array<[number, number, number]> = [
+      [-5.0, -0.8, 2.3],
+      [5.2, -0.6, 2.0],
+      [-3.5, 4.8, 1.6],
+      [3.7, 5.0, 1.8],
+      [0.0, 6.4, 2.4],
+    ];
+    crystalPos.forEach(([x, z, h], i) => {
+      const crystal = MeshBuilder.CreateCylinder(`arcticCrystal${i}`, { diameterTop: 0.05, diameterBottom: 0.6, height: h, tessellation: 6 }, scene);
+      crystal.position = place(x, z);
+      crystal.position.y = h * 0.42;
+      crystal.material = iceMat;
+      crystal.parent = root;
+      styleBackgroundMesh(shadowGen, crystal);
+    });
+    const chunk = MeshBuilder.CreateBox('arcticChunk', { width: 1.8, height: 0.35, depth: 1.1 }, scene);
+    chunk.position = place(-1.8, 5.6);
+    chunk.position.y = -0.03;
+    chunk.material = chunkMat;
+    chunk.parent = root;
+    styleBackgroundMesh(shadowGen, chunk);
+  }
+
+  return root;
+}
+
 export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const contentRootRef = useRef<TransformNode | null>(null);
@@ -122,6 +289,8 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
       dir.intensity = 1.05;
       groundMat.diffuseColor = new Color3(0.11, 0.14, 0.18);
     }
+
+    createBackgroundProps(scene, scenePreset, shadowGen);
 
     let t0 = performance.now();
     let bobBaseY = 0;
