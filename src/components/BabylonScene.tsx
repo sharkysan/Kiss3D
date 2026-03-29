@@ -5,6 +5,7 @@ import {
   DirectionalLight,
   Engine,
   HemisphericLight,
+  ImageProcessingConfiguration,
   MeshBuilder,
   Scene,
   ShadowGenerator,
@@ -53,9 +54,13 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
 
     let cancelled = false;
 
-    const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+    const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }, true);
     const scene = new Scene(engine);
     scene.clearColor.set(0, 0, 0, 1);
+    scene.imageProcessingConfiguration.toneMappingEnabled = true;
+    scene.imageProcessingConfiguration.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
+    scene.imageProcessingConfiguration.exposure = 1.05;
+    scene.imageProcessingConfiguration.contrast = 1.08;
 
     const camera = new ArcRotateCamera('camera', Math.PI / 2, Math.PI / 3, 4, Vector3.Zero(), scene);
     camera.lowerBetaLimit = Math.PI / 6;
@@ -69,9 +74,11 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
     dir.position = new Vector3(10, 10, 10);
     dir.intensity = 1.0;
 
-    const shadowGen = new ShadowGenerator(1024, dir);
-    shadowGen.useBlurExponentialShadowMap = true;
-    shadowGen.blurKernel = 16;
+    const shadowGen = new ShadowGenerator(2048, dir);
+    shadowGen.usePercentageCloserFiltering = true;
+    shadowGen.filteringQuality = ShadowGenerator.QUALITY_HIGH;
+    shadowGen.bias = 0.0003;
+    shadowGen.normalBias = 0.015;
 
     const ground = MeshBuilder.CreateGround('ground', { width: 10, height: 10, subdivisions: 2 }, scene);
     ground.receiveShadows = true;
@@ -101,7 +108,30 @@ export const BabylonScene: React.FC<BabylonSceneProps> = ({ parts, scenePreset }
 
     const attachShadows = (root: TransformNode) => {
       shadowGen.getShadowMap()?.renderList?.splice(0);
-      root.getChildMeshes(true).forEach((m) => shadowGen.addShadowCaster(m, true));
+      const textureKeys = [
+        'albedoTexture',
+        'baseTexture',
+        'diffuseTexture',
+        'metallicTexture',
+        'bumpTexture',
+        'normalTexture',
+        'ambientTexture',
+        'emissiveTexture',
+        'opacityTexture',
+      ];
+      root.getChildMeshes(true).forEach((m) => {
+        shadowGen.addShadowCaster(m, true);
+        const mat = m.material;
+        if (mat && typeof mat === 'object') {
+          const matRecord = mat as unknown as Record<string, unknown>;
+          for (const key of textureKeys) {
+            const tex = matRecord[key];
+            if (tex && typeof tex === 'object' && 'anisotropicFilteringLevel' in tex) {
+              (tex as { anisotropicFilteringLevel: number }).anisotropicFilteringLevel = 8;
+            }
+          }
+        }
+      });
     };
 
     void (async () => {

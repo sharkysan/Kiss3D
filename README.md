@@ -2,6 +2,8 @@
 
 Browser **3D model viewer** for bundled glTF/glB characters, built with **Babylon.js**, **React 19**, **Vite 6**, **TypeScript**, and **Tailwind CSS v4**.
 
+![Kiss3D Screenshot](public/kiss3d-screenshot.png)
+
 ## Features
 
 - **Mix & match** — Choose **body, head, legs, and feet** independently from characters listed in `manifest.json`. The **body** sets the skeleton; other parts are skinned to that rig (`src/characterParts.ts` maps glTF mesh names).
