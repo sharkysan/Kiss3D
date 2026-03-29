@@ -1,11 +1,7 @@
 import React, { useState, Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, PerspectiveCamera } from '@react-three/drei';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Shield, Zap, Palette, Info, ChevronRight, Camera } from 'lucide-react';
-import { Avatar } from './components/Avatar';
-import { CustomModel } from './components/CustomModel';
-import { GoogleDrivePicker } from './components/GoogleDrivePicker';
+import { BabylonScene } from './components/BabylonScene';
 import { COSPLAY_SETS, CosplaySet, POSES, PoseType } from './types';
 
 export default function App() {
@@ -16,7 +12,6 @@ export default function App() {
   const [customColor, setCustomColor] = useState<string | null>(null);
   const [skinTone, setSkinTone] = useState<string>("#f5d0c0");
   const [isFlashing, setIsFlashing] = useState(false);
-  const [customModelUrl, setCustomModelUrl] = useState<string | null>(null);
 
   const activeSet = customColor ? { ...currentSet, primaryColor: customColor } : currentSet;
 
@@ -29,37 +24,14 @@ export default function App() {
     <div className="relative h-screen w-screen font-sans overflow-hidden bg-[#050505]">
       {/* 3D Canvas */}
       <div className="absolute inset-0 z-0">
-        <Canvas shadows dpr={[1, 2]}>
-          <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
-          <Suspense fallback={null}>
-            {customModelUrl ? (
-              <CustomModel url={customModelUrl} />
-            ) : (
-              <Avatar set={activeSet} skinColor={skinTone} pose={currentPose} />
-            )}
-            {currentScene === 'studio' && <Environment preset="city" />}
-            {currentScene === 'jungle' && <Environment preset="forest" />}
-            {currentScene === 'tomb' && <Environment preset="night" />}
-            <ContactShadows 
-              position={[0, -0.2, 0]} 
-              opacity={0.4} 
-              scale={10} 
-              blur={2} 
-              far={10} 
-              resolution={256} 
-              color="#000000" 
-            />
-          </Suspense>
-          <OrbitControls 
-            enablePan={false} 
-            minDistance={2} 
-            maxDistance={6} 
-            minPolarAngle={Math.PI / 4} 
-            maxPolarAngle={Math.PI / 1.5} 
+        <Suspense fallback={null}>
+          <BabylonScene
+            set={activeSet}
+            skinColor={skinTone}
+            pose={currentPose}
+            scenePreset={currentScene}
           />
-          <ambientLight intensity={0.5} />
-          <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
-        </Canvas>
+        </Suspense>
       </div>
 
       {/* UI Overlay */}
@@ -80,7 +52,6 @@ export default function App() {
           </motion.div>
 
           <div className="flex gap-4 pointer-events-auto">
-            <GoogleDrivePicker onFileSelect={setCustomModelUrl} />
             <button 
               onClick={() => setShowInfo(!showInfo)}
               className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors"
@@ -102,24 +73,6 @@ export default function App() {
           animate={{ x: 0, opacity: 1 }}
           className="absolute right-8 top-32 pointer-events-auto flex flex-col gap-4"
         >
-          <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Custom Model</span>
-            </div>
-            {customModelUrl ? (
-              <button
-                onClick={() => setCustomModelUrl(null)}
-                className="w-full px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-widest bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
-              >
-                Clear Model
-              </button>
-            ) : (
-              <div className="text-[10px] font-mono uppercase tracking-widest text-white/20 text-center py-2">
-                No Custom Model
-              </div>
-            )}
-          </div>
-
           <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Pose</span>
